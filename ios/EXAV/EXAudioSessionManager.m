@@ -204,6 +204,8 @@ UM_REGISTER_SINGLETON_MODULE(AudioSessionManager);
     return error;
   }
 
+  session.overrideOutputAudioPort(AVAudioSessionPortOverride.Speaker, error: nil)
+
   return nil;
 }
 

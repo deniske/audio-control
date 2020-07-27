@@ -9,6 +9,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.media.AudioManager;
 import android.media.MediaRecorder;
+import android.media.AudioRecord;
+import android.media.AudioTrack;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -644,21 +646,41 @@ public class AVManager implements LifecycleEventListener, AudioManager.OnAudioFo
       return;
     }
 
+    static final int bufferSize = 200000;
+    final short[] buffer = new short[bufferSize];
+    short[] readBuffer = new short[bufferSize];
+    android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
+    int buffersize = AudioRecord.getMinBufferSize(11025, AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT);
+    AudioRecord arec = new AudioRecord(MediaRecorder.AudioSource.MIC, 11025, AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT, buffersize);
+    AudioTrack atrack = new AudioTrack(AudioManager.STREAM_VOICE_CALL, 11025, AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT, buffersize, AudioTrack.MODE_STREAM);
+    atrack.setPlaybackRate(11025);
+    byte[] buffer = new byte[buffersize];
+    arec.startRecording();
+    atrack.play();
+    mAudioRecorderUptimeOfLastStartResume = SystemClock.uptimeMillis();
+    mAudioRecorderIsRecording = true;
+    mAudioRecorderIsPaused = false;
+
+
     if (checkAudioRecorderExistsOrReject(promise)) {
       try {
-        if (mAudioRecorderIsPaused && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-          mAudioRecorder.resume();
-        } else {
-          mAudioRecorder.start();
+        while(mAudioRecorderIsRecording) {
+          arec.read(buffer, 0, buffersize);
+          atrack.write(buffer, 0, buffer.length);
         }
+        // if (mAudioRecorderIsPaused && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        //   mAudioRecorder.resume();
+        // } else {
+        //   mAudioRecorder.start();
+        // }
       } catch (final IllegalStateException e) {
         promise.reject("E_AUDIO_RECORDING", "Start encountered an error: recording not started", e);
         return;
       }
 
-      mAudioRecorderUptimeOfLastStartResume = SystemClock.uptimeMillis();
-      mAudioRecorderIsRecording = true;
-      mAudioRecorderIsPaused = false;
+      // mAudioRecorderUptimeOfLastStartResume = SystemClock.uptimeMillis();
+      // mAudioRecorderIsRecording = true;
+      // mAudioRecorderIsPaused = false;
 
       promise.resolve(getAudioRecorderStatus());
     }
